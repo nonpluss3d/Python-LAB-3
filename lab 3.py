@@ -1,84 +1,78 @@
 from PIL import Image
 
-#Декодирование
-def decode(image_name, key_name):
-    img = Image.open(image_name)
-    pixels = img.load()
+#декодирование
+def decode():
+    img = Image.open("new12.png")
+    pix = img.load()
 
-    bits = ""
+    #координаты
+    f = open("keys12.txt")
+    coords = []
+    for line in f:
+        line = line.strip().strip("()")
+        x, y = map(int, line.split(","))
+        coords.append((x, y))
+    f.close()
 
-    with open(key_name, "r") as file:
-        for line in file:
-            x, y = map(int, line.strip()[1:-1].split(","))
+    #байты из синего канала
+    data = []
+    for x, y in coords:
+        r, g, b = pix[x, y][:3]
+        data.append(b)
 
-            # Берём зелёный канал
-            g = pixels[x, y][1]
-
-            # Получаем 0 бит
-            bits += str(g & 1)
-
-    print("Полученные биты:")
-    print(bits)
-
-    # Переводим биты в символы
+    #байты в текст
     text = ""
+    for byte in data:
+        text += chr(byte)
 
-    for i in range(0, len(bits), 8):
-        byte = bits[i:i + 8]
+    print("Сообщение:", text)
+    return coords, text
 
-        if len(byte) == 8:
-            text += chr(int(byte, 2))
 
-    print("\nДекодированный текст:")
-    print(text)
+#кодирование
+def encode(coords, text):
+    img = Image.open("new12.png")
+    img = img.convert("RGB")
+    pix = img.load()
 
-#Кодирование
-def encode(image_name, out_image, text):
-    img = Image.open(image_name)
-    pixels = img.load()
+    #текст в биты
+    bits = []
+    for c in text:
+        byte = ord(c)
+        for i in range(7, -1, -1):
+            bits.append((byte >> i) & 1)
 
-    # Перевод текста в биты
-    bits = ""
+    #первый символ
+    if text:
+        print("\nПервый символ:", text[0])
+        print("Биты:", end=" ")
+        for i in range(7, -1, -1):
+            print((ord(text[0]) >> i) & 1, end="")
+        print()
 
-    for symbol in text:
-        bits += format(ord(symbol), "08b")
-
-    print("Биты первого символа:")
-    print(format(ord(text[0]), "08b"))
-    print(" ")
-
-    width, height = img.size
-    index = 0
-
-    for y in range(height):
-        for x in range(width):
-
-            if index >= len(bits):
-                break
-
-            r, g, b, a = pixels[x, y]
-
-            old_g = g
-
-            # Меняем 0 бит зелёного канала
-            g = (g & ~1) | int(bits[index])
-
-            pixels[x, y] = (r, g, b, a)
-
-            print(f"Пиксель ({x}, {y})")
-            print(f"Было: {old_g}")
-            print(f"Стало: {g}\n")
-
-            index += 1
-
-        if index >= len(bits):
+    #биты в зелёном сигнале
+    for i, (x, y) in enumerate(coords):
+        if i >= len(bits):
             break
+        r, g, b = pix[x, y]
 
-    img.save(out_image)
+        if i < 8:
+            print(f"\nПиксель {i + 1} ({x},{y}):")
+            print(f"  Было: G={g}")
+            print(f"  Бит: {bits[i]}")
+
+        new_g = g - (g % 2) + bits[i]
+
+        if i < 8:
+            print(f"  Стало: G={new_g}")
+
+        pix[x, y] = (r, new_g, b)
+
+    img.save("new_new12.png")
 
 
-# Декодирование
-decode("new12.png", "keys12.txt")
-
-# Кодирование
-encode("new12.png", "result.png", "RGB")
+coords, msg = decode()
+new_text = input("Введите текст: ")
+if not new_text:
+    new_text = "Test"
+encode(coords, new_text)
